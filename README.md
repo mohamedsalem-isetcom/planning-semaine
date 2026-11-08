@@ -1,17 +1,19 @@
 # Planning de la semaine
 
-Un planning hebdomadaire interactif : 7 jours, 24 heures chacun. Une seule page HTML, sans installation, sans serveur, sans compte.
+Un planning hebdomadaire interactif pour toutes les semaines : 7 jours, 24 heures chacun. Une seule page HTML, sans installation, sans serveur, sans compte.
 
 ## Fonctionnalités
 
+- **Toutes les semaines** : flèches précédente/suivante, sélecteur de date et bouton « Aujourd'hui ». Chaque semaine a ses propres activités.
+- **Activités répétées** : cochez « Répéter chaque semaine » pour qu'une activité apparaisse dans toutes les semaines (cours, sommeil, sport).
 - **Grille 7 jours × 24 h** avec un pas d'une demi-heure. Cliquez sur une case pour ajouter une activité, cliquez sur un bloc pour le modifier ou le supprimer.
 - **Catégories colorées** : Travail, Études, Sport, Repas, Sommeil, Loisirs, Autre.
 - **Plusieurs jours à la fois** : cochez les jours concernés pour répéter une activité.
-- **Activités de nuit** : un bloc qui finit après minuit (par exemple 23:00 → 07:00) passe sur le jour suivant.
+- **Activités de nuit** : un bloc qui finit après minuit (par exemple 23:00 → 07:00) passe sur le jour suivant. Un dimanche soir qui finit après minuit se poursuit le lundi de la semaine suivante.
 - **Votre nom** dans l'en-tête, repris dans le PDF.
 - **Thème au choix** : Auto, Clair ou Sombre.
-- **Statistiques** : taux d'occupation, heures actives, sommeil moyen, jour le plus chargé et le plus léger, plus longue plage libre, plus long bloc, répartition de chaque journée et rythme par heure.
-- **Export PDF** : A4 paysage sur fond blanc, grille de la semaine en page 1 et statistiques en page 2.
+- **Statistiques** de la semaine affichée : taux d'occupation, heures actives, sommeil moyen, jour le plus chargé et le plus léger, plus longue plage libre, plus long bloc, répartition de chaque journée et rythme par heure.
+- **Export PDF** de la semaine affichée : A4 paysage sur fond blanc, grille en page 1 et statistiques en page 2.
 - **Sauvegarde automatique** dans le navigateur (`localStorage`). Aucune donnée n'est envoyée ailleurs.
 
 ## Utilisation
@@ -41,7 +43,7 @@ Tout est dans `index.html` :
 
 ## Données
 
-Le planning, le nom et le thème sont enregistrés dans la clé `planning-semaine-v1` du `localStorage` de votre navigateur. Ils restent sur votre appareil. Vider les données du site efface le planning.
+Le planning, le nom et le thème sont enregistrés dans la clé `planning-semaine-v2` du `localStorage` de votre navigateur. Ils restent sur votre appareil. Vider les données du site efface le planning.
 
 ## Technologies
 
