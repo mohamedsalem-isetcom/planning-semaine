@@ -2,10 +2,8 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<style>html{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Planning de la semaine</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -122,6 +120,21 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
 .check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; }
 .check input { margin-top: 3px; }
 .check small { display: block; color: var(--muted); font-size: 12.5px; }
+.field input[type="time"] { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; min-width: 0; font-family: var(--font-mono); }
+.sheet.wide { width: min(560px, 100%); }
+#imp-body { display: flex; flex-direction: column; gap: 14px; }
+.imp-list { max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+.imp-day b { font-family: var(--font-display); font-size: 14px; }
+.imp-day ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; }
+.imp-day li { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.imp-day li input { flex: 1; min-width: 0; background: transparent; border: 0; border-bottom: 1px solid transparent; border-radius: 0; padding: 3px 2px; font: inherit; color: var(--ink); }
+.imp-day li input:hover { border-bottom-color: var(--line); }
+.imp-day li input:focus { outline: none; border-bottom-color: var(--ink); }
+.imp-x { flex: none; border: 0; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.imp-x:hover { color: var(--now); background: var(--surface); }
+.imp-day li span:first-child { font-family: var(--font-mono); color: var(--muted); flex: none; }
+body.dragging::after { content: "Déposez votre planning ici"; position: fixed; inset: 10px; z-index: 70; display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px;
+  border: 3px dashed var(--ink); border-radius: 16px; background: color-mix(in srgb, var(--bg) 88%, transparent); font: 700 24px var(--font-display); color: var(--ink); pointer-events: none; }
 .note { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; color: var(--muted); font-size: 14px; }
 .note[hidden] { display: none; }
 
@@ -221,6 +234,7 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
 </style>
 </head>
 <body>
+
 <div class="wrap">
   <header>
     <div class="topline">
@@ -239,11 +253,13 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
       <label class="datepick"><span class="sr">Aller à une date</span><input type="date" id="wk-date"></label>
       <button class="btn" id="wk-today" type="button">Aujourd'hui</button>
     </div>
-    <p class="sub">Choisissez une semaine ou une date, puis touchez une case de la grille pour ajouter une activité.</p>
+    <p class="sub">Choisissez une semaine ou une date, puis touchez une case de la grille pour ajouter une activité. Vous pouvez aussi importer votre emploi du temps (PDF, capture d'écran, Excel, CSV) ou le déposer sur la page.</p>
   </header>
 
   <div class="actions">
     <button class="btn primary" id="btn-new" type="button">Nouvelle activité</button>
+    <button class="btn" id="btn-import" type="button" title="PDF ou capture de votre emploi du temps, Excel, CSV, calendrier .ics">Importer mon planning</button>
+    <input type="file" id="imp-file" class="sr" tabindex="-1" aria-hidden="true" accept=".csv,.tsv,.txt,.xlsx,.xls,.ods,.ics,.json,.pdf,image/*">
     <button class="btn" id="btn-pdf" type="button" title="Le PDF est toujours sur fond blanc">Enregistrer en PDF</button>
     <button class="btn" id="btn-sample" type="button">Semaine d'exemple</button>
     <button class="btn danger" id="btn-clear" type="button">Vider cette semaine</button>
@@ -281,7 +297,34 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     </div>
   </section>
 
-  <footer class="foot">Licence Mohamed Salem · Libre à partager et à modifier. Vos données restent dans votre navigateur.</footer>
+  <footer class="foot">Licence MIT · Libre à partager et à modifier. Vos données restent dans votre navigateur.</footer>
+</div>
+
+<div class="overlay" id="imp" hidden>
+  <div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="imp-title">
+    <h2 id="imp-title">Importer un planning</h2>
+    <p class="hint" id="imp-status" role="status" aria-live="polite"></p>
+    <div id="imp-body" hidden>
+      <div class="imp-list" id="imp-list"></div>
+      <div class="field" id="imp-scope-wrap">
+        <span class="lbl" id="lbl-scope">Où l'ajouter ?</span>
+        <div class="chips" role="radiogroup" aria-labelledby="lbl-scope">
+          <label><input type="radio" name="imp-scope" value="rep" checked><span>Chaque semaine</span></label>
+          <label><input type="radio" name="imp-scope" value="week"><span id="imp-week-label">Cette semaine seulement</span></label>
+        </div>
+      </div>
+      <div class="field">
+        <label for="imp-cat">Catégorie des activités</label>
+        <select id="imp-cat"></select>
+      </div>
+      <label class="check" id="imp-replace-wrap"><input type="checkbox" id="imp-replace"><span>Remplacer mes activités actuelles<small>Retire d'abord ce qui est déjà dans la même portée.</small></span></label>
+    </div>
+    <div class="sheet-actions">
+      <span class="spacer"></span>
+      <button class="btn" type="button" id="imp-cancel">Annuler</button>
+      <button class="btn primary" type="button" id="imp-ok" hidden>Ajouter</button>
+    </div>
+  </div>
 </div>
 
 <div class="overlay" id="overlay" hidden>
@@ -296,8 +339,8 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
       <div class="chips" id="f-days" role="group" aria-labelledby="lbl-days"></div>
     </div>
     <div class="row">
-      <div class="field"><label for="f-start">Début</label><select id="f-start"></select></div>
-      <div class="field"><label for="f-end">Fin</label><select id="f-end"></select></div>
+      <div class="field"><label for="f-start">Début</label><input type="time" id="f-start" step="60"></div>
+      <div class="field"><label for="f-end">Fin</label><input type="time" id="f-end" step="60"></div>
     </div>
     <p class="hint" id="f-hint"></p>
     <div class="field">
@@ -326,8 +369,9 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     { id: 'other', name: 'Autre' }
   ];
   var PDF_COLORS = { work: '#3B5BDB', study: '#7048E8', sport: '#2B9348', meal: '#E08A00', sleep: '#53668A', leisure: '#D6336C', other: '#7A8594' };
-  var KEY = 'planning-semaine-v2', OLD_KEY = 'planning-semaine-v1';
-  var HH = 44, HALF = HH / 2;
+  var KEY = 'planning-semaine-v3', KEY_V2 = 'planning-semaine-v2', KEY_V1 = 'planning-semaine-v1';
+  /* Toutes les heures sont stockées en minutes depuis minuit (0 à 1440). */
+  var HH = 44, PX = HH / 60, DAYMIN = 1440, WEEKMIN = 10080;
   var state = { events: [], name: '', theme: 'auto' };
   var viewKey = '';
   var editingId = null;
@@ -337,12 +381,25 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function pad(n) { return (n < 10 ? '0' : '') + n; }
-  function fmt(h2) { return pad(Math.floor(h2 / 2)) + ':' + (h2 % 2 ? '30' : '00'); }
+  function fmt(m) { return pad(Math.floor(m / 60)) + ':' + pad(m % 60); }
+  function parseTime(str) {
+    var m = /^\s*(\d{1,2}):(\d{2})/.exec(String(str));
+    if (!m) return NaN;
+    var h = +m[1], mi = +m[2];
+    if (mi > 59 || h > 24 || (h === 24 && mi > 0)) return NaN;
+    return h * 60 + mi;
+  }
   function uid() { return 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
   function catName(id) { for (var i = 0; i < CATS.length; i++) if (CATS[i].id === id) return CATS[i].name; return 'Autre'; }
-  function dur(ev) { var d = ev.end - ev.start; return d > 0 ? d : d + 48; }
-  /* n = nombre de demi-heures */
-  function hm(n) { var h = Math.floor(n / 2), m = n % 2 ? 30 : 0; return m ? h + ' h ' + m : h + ' h'; }
+  function isCat(id) { for (var i = 0; i < CATS.length; i++) if (CATS[i].id === id) return true; return false; }
+  function dur(ev) { var d = ev.end - ev.start; return d > 0 ? d : d + DAYMIN; }
+  /* n = nombre de minutes */
+  function hm(n) {
+    n = Math.round(n);
+    var h = Math.floor(n / 60), m = n % 60;
+    if (!h) return m + ' min';
+    return m ? h + ' h ' + pad(m) : h + ' h';
+  }
   function todayIdx() { return (new Date().getDay() + 6) % 7; }
 
   /* Semaines : chaque semaine est identifiée par la date de son lundi (AAAA-MM-JJ). */
@@ -362,7 +419,8 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
   /* week = clé d'une semaine pour un exemple limité à cette semaine, null pour un exemple répété chaque semaine. */
   function sampleWeek(week) {
     var ev = [];
-    function add(day, s, e, title, cat) { ev.push({ id: uid(), day: day, start: s, end: e, title: title, cat: cat, rep: week === null, week: week, sample: true }); }
+    /* Les heures de l'exemple sont écrites en demi-heures. */
+    function add(day, s, e, title, cat) { ev.push({ id: uid(), day: day, start: s * 30, end: e * 30, title: title, cat: cat, rep: week === null, week: week, sample: true }); }
     for (var d = 0; d < 7; d++) {
       add(d, 46, 14, 'Sommeil', 'sleep');
       add(d, 16, 17, 'Petit-déjeuner', 'meal');
@@ -384,11 +442,17 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     return ev;
   }
 
-  function clean(list) {
-    return list.filter(function (e) { return e && typeof e.day === 'number' && typeof e.start === 'number' && typeof e.end === 'number'; }).map(function (e) {
-      return { id: e.id || uid(), day: e.day, start: e.start, end: e.end, title: String(e.title || ''), cat: e.cat || 'other', rep: !!e.rep, week: e.rep ? null : (e.week || null), sample: !!e.sample };
+  function clean(list, mult) {
+    var out = [];
+    list.forEach(function (e) {
+      if (!e || typeof e !== 'object') return;
+      var day = Math.round(+e.day), s = Math.round(+e.start * mult), en = Math.round(+e.end * mult);
+      if (!(day >= 0 && day <= 6) || !(s >= 0 && s <= 1439) || !(en >= 1 && en <= 1440) || s === en) return;
+      out.push({ id: e.id || uid(), day: day, start: s, end: en, title: String(e.title || '').slice(0, 60), cat: isCat(e.cat) ? e.cat : 'other', rep: !!e.rep, week: e.rep ? null : (typeof e.week === 'string' ? e.week : null), sample: !!e.sample });
     });
+    return out;
   }
+  function themeOf(v) { return v === 'light' || v === 'dark' ? v : 'auto'; }
 
   function load() {
     try {
@@ -396,18 +460,26 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
       if (raw) {
         var data = JSON.parse(raw);
         if (data && Array.isArray(data.events)) {
-          state = { events: clean(data.events), name: typeof data.name === 'string' ? data.name : '', theme: data.theme === 'light' || data.theme === 'dark' ? data.theme : 'auto' };
+          state = { events: clean(data.events, 1), name: typeof data.name === 'string' ? data.name : '', theme: themeOf(data.theme) };
           return;
         }
       }
-      /* Ancienne version : une seule semaine. Elle devient une semaine type répétée chaque semaine. */
-      var old = localStorage.getItem(OLD_KEY);
-      if (old) {
-        var o = JSON.parse(old);
-        if (o && Array.isArray(o.events)) {
+      /* Versions précédentes : les heures étaient en demi-heures. */
+      var raw2 = localStorage.getItem(KEY_V2);
+      if (raw2) {
+        var d2 = JSON.parse(raw2);
+        if (d2 && Array.isArray(d2.events)) {
+          state = { events: clean(d2.events, 30), name: typeof d2.name === 'string' ? d2.name : '', theme: themeOf(d2.theme) };
+          return;
+        }
+      }
+      var raw1 = localStorage.getItem(KEY_V1);
+      if (raw1) {
+        var d1 = JSON.parse(raw1);
+        if (d1 && Array.isArray(d1.events)) {
           state = {
-            events: clean(o.events.map(function (e) { e.rep = true; e.sample = !!o.sample; return e; })),
-            name: typeof o.name === 'string' ? o.name : '', theme: o.theme === 'light' || o.theme === 'dark' ? o.theme : 'auto'
+            events: clean(d1.events.map(function (e) { e.rep = true; e.sample = !!d1.sample; return e; }), 30),
+            name: typeof d1.name === 'string' ? d1.name : '', theme: themeOf(d1.theme)
           };
           return;
         }
@@ -432,7 +504,7 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
 
   function segments(ev) {
     if (ev.end > ev.start) return [{ ev: ev, day: ev.day, s: ev.start, e: ev.end }];
-    var out = [{ ev: ev, day: ev.day, s: ev.start, e: 48 }];
+    var out = [{ ev: ev, day: ev.day, s: ev.start, e: DAYMIN }];
     if (ev.end > 0 && ev.day < 6) out.push({ ev: ev, day: ev.day + 1, s: 0, e: ev.end });
     return out;
   }
@@ -472,10 +544,10 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     return DAYS.map(function (_, i) { return new Date(m.getFullYear(), m.getMonth(), m.getDate() + i); });
   }
 
-  /* Statistiques : chaque demi-heure compte une seule fois, même si deux activités se chevauchent. */
+  /* Statistiques : chaque minute compte une seule fois, même si deux activités se chevauchent. */
   function computeStats() {
-    var slots = [], d, s;
-    for (d = 0; d < 7; d++) slots.push(new Array(48).fill(null));
+    var slots = [], d, s, i;
+    for (d = 0; d < 7; d++) slots.push(new Array(DAYMIN).fill(null));
     perDaySegments().forEach(function (list) {
       list.forEach(function (sg) {
         for (var k = sg.s; k < sg.e; k++) { if (!slots[sg.day][k]) slots[sg.day][k] = sg.ev.cat; }
@@ -485,16 +557,16 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     CATS.forEach(function (c) { cat[c.id] = 0; });
     for (d = 0; d < 7; d++) {
       var n = 0, a = 0;
-      for (s = 0; s < 48; s++) {
+      for (s = 0; s < DAYMIN; s++) {
         var c = slots[d][s];
         if (c) { cat[c]++; n++; if (c !== 'sleep') a++; }
       }
       days.push({ planned: n, active: a });
       planned += n; active += a;
     }
-    var best = { len: 0, start: 0 }, run = 0, startIdx = 0, i;
-    for (i = 0; i < 336; i++) {
-      if (!slots[Math.floor(i / 48)][i % 48]) {
+    var best = { len: 0, start: 0 }, run = 0, startIdx = 0;
+    for (i = 0; i < WEEKMIN; i++) {
+      if (!slots[Math.floor(i / DAYMIN)][i % DAYMIN]) {
         if (run === 0) startIdx = i;
         run++;
         if (run > best.len) best = { len: run, start: startIdx };
@@ -504,8 +576,10 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     for (var h = 0; h < 24; h++) {
       var cnt = 0;
       for (d = 0; d < 7; d++) {
-        var a1 = slots[d][2 * h], a2 = slots[d][2 * h + 1];
-        if ((a1 && a1 !== 'sleep') || (a2 && a2 !== 'sleep')) cnt++;
+        for (var q = h * 60; q < h * 60 + 60; q++) {
+          var cc = slots[d][q];
+          if (cc && cc !== 'sleep') { cnt++; break; }
+        }
       }
       rhythm.push(cnt);
     }
@@ -521,7 +595,7 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
 
   function runsOf(daySlots) {
     var runs = [], cur = null;
-    for (var s = 0; s < 48; s++) {
+    for (var s = 0; s < DAYMIN; s++) {
       var c = daySlots[s];
       if (cur && cur.cat === c) cur.len++;
       else { cur = { cat: c, start: s, len: 1 }; runs.push(cur); }
@@ -533,13 +607,13 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     var has = weekEvents(viewKey).length > 0;
     var fs = st.free;
     return [
-      { label: "Taux d'occupation", value: Math.round(st.planned / 336 * 100) + ' %', sub: hm(st.planned) + ' planifiées sur 168 h' },
+      { label: "Taux d'occupation", value: Math.round(st.planned / WEEKMIN * 100) + ' %', sub: hm(st.planned) + ' planifiées sur 168 h' },
       { label: 'Heures actives', value: hm(st.active), sub: 'sommeil exclu' },
-      { label: 'Sommeil par jour', value: hm(Math.round(st.cat.sleep / 7)), sub: 'moyenne sur 7 jours' },
+      { label: 'Sommeil par jour', value: hm(st.cat.sleep / 7), sub: 'moyenne sur 7 jours' },
       { label: 'Activités', value: String(weekEvents(viewKey).length), sub: 'blocs dans la semaine' },
-      { label: 'Jour le plus chargé', value: has ? DAYS[st.busiest] : '-', sub: has ? hm(st.days[st.busiest].active) + ' d\'activités' : 'aucune activité' },
-      { label: 'Jour le plus léger', value: has ? DAYS[st.lightest] : '-', sub: has ? hm(st.days[st.lightest].active) + ' d\'activités' : 'aucune activité' },
-      { label: 'Plus longue plage libre', value: fs.len ? hm(fs.len) : '-', sub: fs.len ? 'dès ' + SHORT[Math.floor(fs.start / 48)].toLowerCase() + ' ' + fmt(fs.start % 48) : 'aucune plage libre' },
+      { label: 'Jour le plus chargé', value: has ? DAYS[st.busiest] : '-', sub: has ? hm(st.days[st.busiest].active) + " d'activités" : 'aucune activité' },
+      { label: 'Jour le plus léger', value: has ? DAYS[st.lightest] : '-', sub: has ? hm(st.days[st.lightest].active) + " d'activités" : 'aucune activité' },
+      { label: 'Plus longue plage libre', value: fs.len ? hm(fs.len) : '-', sub: fs.len ? 'dès ' + SHORT[Math.floor(fs.start / DAYMIN)].toLowerCase() + ' ' + fmt(fs.start % DAYMIN) : 'aucune plage libre' },
       { label: 'Plus long bloc', value: st.longest ? hm(dur(st.longest)) : '-', sub: st.longest ? (st.longest.title || catName(st.longest.cat)) : 'aucune activité' }
     ];
   }
@@ -558,11 +632,11 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     for (var c = 0; c < 7; c++) {
       html += '<div class="col' + (c === t ? ' today' : '') + '" data-day="' + c + '">';
       assignLanes(perDay[c]).forEach(function (sg) {
-        var ev = sg.ev, len = sg.e - sg.s;
-        var top = sg.s * HALF + 1, height = len * HALF - 2;
+        var ev = sg.ev, hpx = (sg.e - sg.s) * PX;
+        var top = sg.s * PX + 1, height = Math.max(hpx - 2, 16);
         var left = (sg.lane / sg.n * 100), width = (100 / sg.n);
         var title = ev.title || catName(ev.cat);
-        html += '<button type="button" class="ev' + (len <= 1 ? ' short' : '') + '" data-id="' + ev.id + '" style="--c:var(--c-' + esc(ev.cat) + ');top:' + top + 'px;height:' + height +
+        html += '<button type="button" class="ev' + (hpx < 30 ? ' short' : '') + '" data-id="' + ev.id + '" style="--c:var(--c-' + esc(ev.cat) + ');top:' + top.toFixed(1) + 'px;height:' + height.toFixed(1) +
           'px;left:calc(' + left + '% + 2px);width:calc(' + width + '% - 4px)" aria-label="' + esc(title) + ', ' + fmt(ev.start) + ' à ' + fmt(ev.end) + '">' +
           '<b>' + esc(title) + '</b><span>' + fmt(ev.start) + '–' + fmt(ev.end) + '</span></button>';
       });
@@ -577,17 +651,17 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     var el = $('nowline');
     if (!el) return;
     var n = new Date();
-    el.style.top = ((n.getHours() * 60 + n.getMinutes()) / 60 * HH) + 'px';
+    el.style.top = ((n.getHours() * 60 + n.getMinutes()) * PX) + 'px';
   }
 
   function renderSummary(st) {
-    var free = 336 - st.planned;
+    var free = WEEKMIN - st.planned;
     $('sum-main').textContent = hm(st.planned) + ' planifiées sur 168 h';
     $('sum-free').textContent = free > 0 ? hm(free) + ' sans activité' : 'Semaine entièrement remplie';
     var bar = '', leg = '';
     CATS.forEach(function (c) {
       var n = st.cat[c.id];
-      if (n > 0) bar += '<i style="--c:var(--c-' + c.id + ');width:' + (n / 336 * 100) + '%" title="' + c.name + ' : ' + hm(n) + '"></i>';
+      if (n > 0) bar += '<i style="--c:var(--c-' + c.id + ');width:' + (n / WEEKMIN * 100) + '%" title="' + c.name + ' : ' + hm(n) + '"></i>';
       leg += '<li><span class="sw" style="--c:var(--c-' + c.id + ')"></span>' + c.name + ' <b>' + hm(n) + '</b></li>';
     });
     $('bar').innerHTML = bar;
@@ -607,7 +681,7 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
       var runs = runsOf(st.slots[d]), bar = '';
       runs.forEach(function (r) {
         var title = (r.cat ? catName(r.cat) : 'Libre') + ' : ' + fmt(r.start) + '–' + fmt(r.start + r.len);
-        bar += '<i class="' + (r.cat ? '' : 'free') + '" style="' + (r.cat ? '--c:var(--c-' + r.cat + ');' : '') + 'width:' + (r.len / 48 * 100) + '%" title="' + title + '"></i>';
+        bar += '<i class="' + (r.cat ? '' : 'free') + '" style="' + (r.cat ? '--c:var(--c-' + r.cat + ');' : '') + 'width:' + (r.len / DAYMIN * 100) + '%" title="' + title + '"></i>';
       });
       dh += '<div class="dayrow"><span class="dn">' + SHORT[d] + '</span><div class="daybar">' + bar + '</div><span class="dv">' + hm(st.days[d].planned) + '</span></div>';
     }
@@ -645,12 +719,8 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     renderStats(st);
   }
 
-  /* Éditeur */
+  /* Éditeur : l'heure se saisit à la minute près (par exemple 11:42). */
   function buildForm() {
-    var s = '', e = '', i;
-    for (i = 0; i < 48; i++) s += '<option value="' + i + '">' + fmt(i) + '</option>';
-    for (i = 1; i <= 48; i++) e += '<option value="' + i + '">' + fmt(i) + '</option>';
-    $('f-start').innerHTML = s; $('f-end').innerHTML = e;
     var dh = '';
     DAYS.forEach(function (d, k) { dh += '<label><input type="checkbox" name="day" value="' + k + '"><span>' + SHORT[k] + '</span></label>'; });
     $('f-days').innerHTML = dh;
@@ -661,11 +731,18 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     $('f-cats').innerHTML = ch;
   }
 
+  function readTimes() {
+    var s = parseTime($('f-start').value), e = parseTime($('f-end').value);
+    if (e === 0) e = DAYMIN;
+    return { s: s, e: e };
+  }
+
   function updateHint() {
-    var s = +$('f-start').value, e = +$('f-end').value, h = $('f-hint');
+    var t = readTimes(), h = $('f-hint');
     h.className = 'hint';
-    if (e === s) { h.textContent = 'La fin doit être différente du début.'; h.className = 'hint err'; return false; }
-    h.textContent = 'Durée : ' + hm(dur({ start: s, end: e })) + (e < s ? ' (se termine le lendemain)' : '');
+    if (isNaN(t.s) || isNaN(t.e)) { h.textContent = "Entrez l'heure de début et de fin, par exemple 11:42."; h.className = 'hint err'; return false; }
+    if (t.e === t.s) { h.textContent = 'La fin doit être différente du début.'; h.className = 'hint err'; return false; }
+    h.textContent = 'Durée : ' + hm(dur({ start: t.s, end: t.e })) + (t.e < t.s ? ' (se termine le lendemain)' : '');
     return true;
   }
 
@@ -674,8 +751,8 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     var src = ev || defaults;
     $('sheet-title').textContent = ev ? "Modifier l'activité" : 'Nouvelle activité';
     $('f-title').value = ev ? ev.title : '';
-    $('f-start').value = src.start;
-    $('f-end').value = src.end;
+    $('f-start').value = fmt(src.start % DAYMIN);
+    $('f-end').value = fmt(src.end % DAYMIN);
     $('f-rep').checked = ev ? !!ev.rep : false;
     var days = document.querySelectorAll('#f-days input');
     for (var i = 0; i < days.length; i++) days[i].checked = (+days[i].value === src.day);
@@ -694,8 +771,8 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     var days = [].slice.call(document.querySelectorAll('#f-days input:checked')).map(function (x) { return +x.value; });
     if (!days.length) { var h = $('f-hint'); h.textContent = 'Choisissez au moins un jour.'; h.className = 'hint err'; return; }
     var cat = document.querySelector('#f-cats input:checked').value;
-    var rep = $('f-rep').checked;
-    var data = { title: $('f-title').value.trim() || catName(cat), start: +$('f-start').value, end: +$('f-end').value, cat: cat };
+    var t = readTimes(), rep = $('f-rep').checked;
+    var data = { title: $('f-title').value.trim() || catName(cat), start: t.s, end: t.e, cat: cat };
     var rest = days.slice();
     if (editingId) {
       var cur = state.events.filter(function (x) { return x.id === editingId; })[0];
@@ -768,12 +845,12 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     var perDay = perDaySegments();
     for (var c = 0; c < 7; c++) {
       assignLanes(perDay[c]).forEach(function (sg) {
-        var ev = sg.ev, len = sg.e - sg.s, col = PDF_COLORS[ev.cat] || PDF_COLORS.other;
+        var ev = sg.ev, col = PDF_COLORS[ev.cat] || PDF_COLORS.other;
         var w = colW / sg.n - 0.8, x = gridX + c * colW + sg.lane * (colW / sg.n) + 0.4;
-        var y0 = body0 + sg.s / 2 * rowH + 0.3, hgt = len / 2 * rowH - 0.6;
+        var y0 = body0 + sg.s / 60 * rowH + 0.3, hgt = (sg.e - sg.s) / 60 * rowH - 0.6;
         var fill = tint(col, 0.24), edge = hexRgb(col);
         doc.setFillColor.apply(doc, fill); doc.setDrawColor.apply(doc, edge); doc.setLineWidth(0.25);
-        doc.roundedRect(x, y0, w, hgt, 0.8, 0.8, 'FD');
+        doc.roundedRect(x, y0, w, Math.max(hgt, 0.8), 0.8, 0.8, 'FD');
         var title = pdfText(ev.title || catName(ev.cat));
         doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor.apply(doc, INK);
         var line1 = doc.splitTextToSize(title, w - 1.8)[0] || '';
@@ -825,7 +902,7 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
       doc.setFillColor(240, 243, 247); doc.rect(M + 30, ry - 3, 70, 4, 'F');
       if (n > 0) { doc.setFillColor.apply(doc, col); doc.rect(M + 30, ry - 3, 70 * n / maxCat, 4, 'F'); }
       doc.setFontSize(7.5); doc.setTextColor.apply(doc, MUTED);
-      doc.text(hm(n) + '  (' + Math.round(n / 336 * 100) + ' %)', M + 103, ry);
+      doc.text(hm(n) + '  (' + Math.round(n / WEEKMIN * 100) + ' %)', M + 103, ry);
     });
     var bx = 172, bw = 98;
     for (var dd = 0; dd < 7; dd++) {
@@ -836,7 +913,7 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
       runsOf(st.slots[dd]).forEach(function (r) {
         if (!r.cat) return;
         doc.setFillColor.apply(doc, hexRgb(PDF_COLORS[r.cat]));
-        doc.rect(bx + r.start / 48 * bw, ry2 - 3, r.len / 48 * bw, 4, 'F');
+        doc.rect(bx + r.start / DAYMIN * bw, ry2 - 3, r.len / DAYMIN * bw, 4, 'F');
       });
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor.apply(doc, MUTED);
       doc.text(hm(st.days[dd].planned), W - M, ry2, { align: 'right' });
@@ -862,22 +939,22 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
 
   function exportPdf() {
     var btn = $('btn-pdf'), status = $('pdf-status');
-    function say(msg, err) { status.textContent = msg; status.className = 'status' + (err ? ' err' : ''); }
-    btn.disabled = true; say('Création du PDF…');
+    function msg(text, err) { status.textContent = text; status.className = 'status' + (err ? ' err' : ''); }
+    btn.disabled = true; msg('Création du PDF…');
     (dlReady || Promise.resolve()).then(function () {
       var blob;
       try { blob = buildPdf().output('blob'); }
-      catch (e) { btn.disabled = false; say("Le PDF n'a pas pu être créé. Rechargez la page et réessayez.", true); return; }
+      catch (e) { btn.disabled = false; msg("Le PDF n'a pas pu être créé. Rechargez la page et réessayez.", true); return; }
       var fname = 'planning-semaine-' + viewKey + (slug(state.name) ? '-' + slug(state.name) : '') + '.pdf';
       if (downloads) {
         downloads.save({ filename: fname, data: blob }).then(function () {
-          btn.disabled = false; say('PDF enregistré.');
+          btn.disabled = false; msg('PDF enregistré.');
         }, function (err) {
           btn.disabled = false;
           var code = err && err.code;
-          if (code === 'declined') say('Enregistrement annulé.');
-          else if (code === 'rate_limited') say('Une demande est déjà en cours. Réessayez dans un instant.', true);
-          else say("L'enregistrement n'est pas disponible ici.", true);
+          if (code === 'declined') msg('Enregistrement annulé.');
+          else if (code === 'rate_limited') msg('Une demande est déjà en cours. Réessayez dans un instant.', true);
+          else msg("L'enregistrement n'est pas disponible ici.", true);
         });
         return;
       }
@@ -886,10 +963,759 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
         var url = URL.createObjectURL(blob), a = document.createElement('a');
         a.href = url; a.download = fname; document.body.appendChild(a); a.click(); a.remove();
         setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
-        btn.disabled = false; say('PDF créé. Si le fichier n\'arrive pas, ouvrez la page dans un navigateur.');
-      } catch (e2) { btn.disabled = false; say("Le téléchargement n'est pas disponible ici. Ouvrez la page dans un navigateur.", true); }
+        btn.disabled = false; msg("PDF créé. Si le fichier n'arrive pas, ouvrez la page dans un navigateur.");
+      } catch (e2) { btn.disabled = false; msg("Le téléchargement n'est pas disponible ici. Ouvrez la page dans un navigateur.", true); }
     });
   }
+
+  /* ================= Import d'un planning ================= */
+  var XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  var PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  var PDFJS_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  var DAYNAMES = [
+    ['lundi', 'lun', 'monday', 'mon'], ['mardi', 'mar', 'tuesday', 'tue'], ['mercredi', 'mer', 'wednesday', 'wed'],
+    ['jeudi', 'jeu', 'thursday', 'thu'], ['vendredi', 'ven', 'friday', 'fri'], ['samedi', 'sam', 'saturday', 'sat'],
+    ['dimanche', 'dim', 'sunday', 'sun']
+  ];
+  var scriptCache = {};
+  function loadScript(url) {
+    if (scriptCache[url]) return scriptCache[url];
+    scriptCache[url] = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = url; s.onload = function () { resolve(); };
+      s.onerror = function () { delete scriptCache[url]; reject({ code: 'load_failed' }); };
+      document.head.appendChild(s);
+    });
+    return scriptCache[url];
+  }
+
+  function norm(s) { return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function dayIndexOf(name) {
+    for (var d = 0; d < 7; d++) if (DAYNAMES[d].indexOf(name) >= 0) return d;
+    return -1;
+  }
+  /* Une cellule d'en-tête qui est un jour ("Lundi", "Lun.", "Lundi 11/11"). */
+  function dayOfCell(cell) {
+    var t = norm(cell).replace(/[^a-z]/g, '');
+    if (!t) return -1;
+    var d = dayIndexOf(t);
+    if (d >= 0) return d;
+    for (d = 0; d < 7; d++) if (t.indexOf(DAYNAMES[d][0]) === 0 || t.indexOf(DAYNAMES[d][2]) === 0) return d;
+    return -1;
+  }
+  function daysIn(line) {
+    var n = norm(line), out = [], m;
+    var re = /\b(?:(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|(lun|mar|mer|jeu|ven|sam|dim)\.)/g;
+    while ((m = re.exec(n))) out.push({ day: dayIndexOf(m[1] || m[2]), index: m.index, len: m[0].length });
+    return out;
+  }
+  function timeTokens(str) {
+    var re = /(\d{1,2})\s*[h:](\d{2})?(?::\d{2})?\s*([ap]\.?m\.?)?/gi, out = [], m;
+    while ((m = re.exec(str))) {
+      var h = +m[1], mi = m[2] ? +m[2] : 0, ap = m[3] ? m[3][0].toLowerCase() : '';
+      if (ap === 'p' && h < 12) h += 12;
+      if (ap === 'a' && h === 12) h = 0;
+      if (h > 24 || mi > 59) continue;
+      out.push({ m: h * 60 + mi, i: m.index, len: m[0].length });
+    }
+    return out;
+  }
+  /* Plage horaire d'un texte. loose accepte aussi "8-10" (colonne des horaires d'un tableau). */
+  function rangeOf(str, loose) {
+    var t = timeTokens(str);
+    if (t.length >= 2) return { s: t[0].m, e: t[1].m === 0 ? DAYMIN : t[1].m, span: [t[0].i, t[1].i + t[1].len] };
+    if (loose) {
+      var m = /^\s*(\d{1,2})\s*(?:-|–|—|à)\s*(\d{1,2})\s*$/.exec(str);
+      if (m && +m[1] < +m[2] && +m[2] <= 24) return { s: +m[1] * 60, e: +m[2] * 60, span: [0, str.length] };
+    }
+    if (t.length === 1) return { s: t[0].m, e: null, span: [t[0].i, t[0].i + t[0].len] };
+    return null;
+  }
+  function cleanTitle(s) {
+    return String(s).replace(/\s+/g, ' ').replace(/^[\s\-–—:;,|·•\/)]+|[\s\-–—:;,|·•\/(]+$/g, '');
+  }
+  function removeSpans(str, spans) {
+    spans.sort(function (a, b) { return b[0] - a[0]; });
+    spans.forEach(function (sp) { str = str.slice(0, sp[0]) + ' ' + str.slice(sp[1]); });
+    return str;
+  }
+  function guessCat(t) {
+    var n = norm(t);
+    if (/(dejeuner|diner|repas|manger|lunch|dinner|breakfast|petit.?dej|cantine)/.test(n)) return 'meal';
+    if (/(sommeil|dormir|sleep|coucher|dodo)/.test(n)) return 'sleep';
+    if (/(sport|gym|foot|basket|natation|running|muscu|tennis|yoga|fitness|entrainement)/.test(n)) return 'sport';
+    if (/(loisir|film|jeux|serie|sortie|amis|detente|lecture|musique|gaming)/.test(n)) return 'leisure';
+    if (/(travail|bureau|reunion|meeting|stage|boulot|work)/.test(n)) return 'work';
+    return 'study';
+  }
+
+  /* Texte libre : "Lundi 08:00-10:00 Maths", une ligne par activité, ou un jour suivi de lignes horaires. */
+  var CONNECTOR_RE = /^[\s|;,\-–—→>]*(?:à|a|au|to|et)?[\s|;,\-–—→>]*$/i;
+  function parseText(text) {
+    var items = [], cur = -1;
+    String(text).split(/\r?\n/).forEach(function (raw) {
+      var line = raw.trim();
+      if (!line) return;
+      var ds = daysIn(line);
+      if (ds.length >= 3) { cur = -1; return; }
+      var toks = timeTokens(line);
+      if (ds.length) cur = ds[0].day;
+      if (cur < 0 || toks.length < 2) return;
+      if (!CONNECTOR_RE.test(line.slice(toks[0].i + toks[0].len, toks[1].i))) return;
+      var s1 = toks[0].i, e2 = toks[1].i + toks[1].len;
+      var before = line.slice(0, s1).match(/\b(?:de|du|from|entre)\s*$/i);
+      if (before) s1 -= before[0].length;
+      var spans = [[s1, e2]];
+      ds.forEach(function (d) { if (d.index + d.len <= s1 || d.index >= e2) spans.push([d.index, d.index + d.len]); });
+      items.push({ day: cur, start: toks[0].m, end: toks[1].m === 0 ? DAYMIN : toks[1].m, title: cleanTitle(removeSpans(line, spans)) });
+    });
+    return items;
+  }
+
+  function mergeContiguous(items) {
+    items.sort(function (a, b) { return a.day - b.day || a.start - b.start; });
+    var out = [];
+    items.forEach(function (it) {
+      var last = out[out.length - 1];
+      if (last && last.day === it.day && last.end === it.start && last.title === it.title) last.end = it.end;
+      else out.push({ day: it.day, start: it.start, end: it.end, title: it.title });
+    });
+    return out;
+  }
+
+  /* Tableau (Excel, CSV) : jours en colonnes, jours en lignes, ou liste. */
+  function parseTable(rows) {
+    rows = rows.map(function (r) {
+      return r.map(function (c) { return c == null ? '' : String(c).replace(/\s*[\r\n]+\s*/g, ' · ').replace(/\s+/g, ' ').trim(); });
+    });
+    var i, j;
+    for (i = 0; i < Math.min(rows.length, 12); i++) {
+      var cols = {}, n = 0;
+      rows[i].forEach(function (c, jj) { var d = dayOfCell(c); if (d >= 0 && !(d in cols)) { cols[d] = jj; n++; } });
+      if (n >= 3) return daysAsColumns(rows, i, cols);
+    }
+    var dayRows = [];
+    rows.forEach(function (r, ii) { if (dayOfCell(r[0] || '') >= 0) dayRows.push(ii); });
+    if (dayRows.length >= 3) {
+      var hdr = null;
+      for (i = dayRows[0] - 1; i >= 0 && !hdr; i--) {
+        var rg = rows[i].map(function (c) { return rangeOf(c, true); });
+        if (rg.filter(function (x) { return x && x.e != null; }).length >= 2) hdr = rg;
+      }
+      if (hdr) return daysAsRows(rows, dayRows, hdr);
+    }
+    return parseText(rows.map(function (r) { return r.filter(Boolean).join(' | '); }).join('\n'));
+  }
+
+  function daysAsColumns(rows, hi, hcols) {
+    var firstCol = Math.min.apply(null, Object.keys(hcols).map(function (k) { return hcols[k]; }));
+    var times = [], i, k;
+    for (i = hi + 1; i < rows.length; i++) times.push({ i: i, rg: rangeOf(rows[i].slice(0, firstCol).join(' '), true) });
+    for (k = 0; k < times.length; k++) {
+      var t = times[k];
+      if (t.rg && t.rg.e == null) {
+        var nxt = null;
+        for (var q = k + 1; q < times.length; q++) if (times[q].rg) { nxt = times[q].rg; break; }
+        t.rg = { s: t.rg.s, e: nxt && nxt.s > t.rg.s ? nxt.s : Math.min(t.rg.s + 60, DAYMIN) };
+      }
+    }
+    var out = [];
+    times.forEach(function (t) {
+      if (!t.rg) return;
+      Object.keys(hcols).forEach(function (d) {
+        var cell = rows[t.i][hcols[d]];
+        if (!cell || /^[-–—.\s]*$/.test(cell)) return;
+        var own = rangeOf(cell, false), r = own && own.e != null ? own : t.rg;
+        var title = cleanTitle(own && own.e != null ? removeSpans(cell, [own.span]) : cell);
+        out.push({ day: +d, start: r.s, end: r.e, title: title });
+      });
+    });
+    return mergeContiguous(out);
+  }
+
+  function daysAsRows(rows, dayRows, hdr) {
+    var out = [];
+    dayRows.forEach(function (ri) {
+      var day = dayOfCell(rows[ri][0]);
+      rows[ri].forEach(function (cell, j) {
+        if (j === 0 || !cell || /^[-–—.\s]*$/.test(cell) || !hdr[j] || hdr[j].e == null) return;
+        out.push({ day: day, start: hdr[j].s, end: hdr[j].e, title: cleanTitle(cell) });
+      });
+    });
+    return mergeContiguous(out);
+  }
+
+  function parseCSV(text) {
+    text = String(text).replace(/^﻿/, '');
+    var lines = text.split(/\r?\n/).filter(function (l) { return l.trim(); }).slice(0, 6);
+    var delim = ',', best = 0;
+    [',', ';', '\t', '|'].forEach(function (d) {
+      var c = lines.reduce(function (a, l) { return a + l.split(d).length - 1; }, 0);
+      if (c > best) { best = c; delim = d; }
+    });
+    var rows = [], row = [], cell = '', q = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+      else if (ch === '"') q = true;
+      else if (ch === delim) { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+      else cell += ch;
+    }
+    row.push(cell); rows.push(row);
+    return rows.filter(function (r) { return r.some(function (c) { return String(c).trim() !== ''; }); });
+  }
+
+  /* Calendrier (.ics). Les événements répétés chaque semaine deviennent des activités répétées. */
+  var ICS_DAYS = { MO: 0, TU: 1, WE: 2, TH: 3, FR: 4, SA: 5, SU: 6 };
+  function icsDate(v) {
+    var m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?$/.exec(v || '');
+    if (!m || m[4] === undefined) return null;
+    return m[7] ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0))) : new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+  }
+  function parseICS(text) {
+    var lines = String(text).replace(/\r?\n[ \t]/g, '').split(/\r?\n/), items = [], ev = null;
+    lines.forEach(function (ln) {
+      if (ln === 'BEGIN:VEVENT') { ev = {}; return; }
+      if (ln === 'END:VEVENT') {
+        if (ev) icsEvent(ev, items);
+        ev = null; return;
+      }
+      if (!ev) return;
+      var i = ln.indexOf(':');
+      if (i > 0) ev[ln.slice(0, i).split(';')[0].toUpperCase()] = ln.slice(i + 1);
+    });
+    return items;
+  }
+  function icsEvent(ev, items) {
+    var a = icsDate(ev.DTSTART);
+    if (!a) return;
+    var b = icsDate(ev.DTEND) || new Date(a.getTime() + 3600000);
+    var sm = a.getHours() * 60 + a.getMinutes(), em = b.getHours() * 60 + b.getMinutes();
+    var sameDay = keyOf(a) === keyOf(b);
+    if (em === 0 && !sameDay) em = DAYMIN;
+    else if (!sameDay && em > sm) em = DAYMIN;
+    var title = String(ev.SUMMARY || '').replace(/\\n/g, ' ').replace(/\\([,;\\])/g, '$1');
+    var rule = ev.RRULE || '', day = (a.getDay() + 6) % 7;
+    if (/FREQ=WEEKLY/.test(rule) || /FREQ=DAILY/.test(rule)) {
+      var days = [], by = /BYDAY=([A-Z,]+)/.exec(rule);
+      if (/FREQ=DAILY/.test(rule)) days = [0, 1, 2, 3, 4, 5, 6];
+      else if (by) by[1].split(',').forEach(function (x) { if (x.slice(-2) in ICS_DAYS) days.push(ICS_DAYS[x.slice(-2)]); });
+      else days = [day];
+      days.forEach(function (d) { items.push({ day: d, start: sm, end: em, title: title, rep: true }); });
+    } else {
+      items.push({ day: day, start: sm, end: em, title: title, week: mondayKey(a) });
+    }
+  }
+
+  function parseJSON(text) {
+    var data = JSON.parse(text);
+    var arr = Array.isArray(data) ? data : (data && Array.isArray(data.events) ? data.events : []);
+    return arr.map(function (e) {
+      return {
+        day: +e.day, start: typeof e.start === 'string' ? parseTime(e.start) : +e.start, end: typeof e.end === 'string' ? parseTime(e.end) : +e.end,
+        title: e.title || e.name || e.summary || '', cat: e.cat, rep: !!e.rep, week: typeof e.week === 'string' ? e.week : null
+      };
+    });
+  }
+
+  /* Contrôle et nettoyage de tout ce qui vient d'un fichier ou de Claude. */
+  function finalize(items) {
+    var seen = {}, out = [];
+    items.forEach(function (it) {
+      var day = Math.round(+it.day), s = Math.round(+it.start), e = Math.round(+it.end);
+      if (e === 0) e = DAYMIN;
+      if (!(day >= 0 && day <= 6) || !(s >= 0 && s <= 1439) || !(e >= 1 && e <= DAYMIN) || s === e) return;
+      var title = String(it.title || '').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Activité';
+      var week = typeof it.week === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(it.week) ? it.week : null;
+      var key = [day, s, e, norm(title), it.rep ? 'r' : week || ''].join('|');
+      if (seen[key]) return;
+      seen[key] = 1;
+      out.push({ day: day, start: s, end: e, title: title, cat: isCat(it.cat) ? it.cat : guessCat(title), rep: !!it.rep && !week, week: week });
+    });
+    return out.slice(0, 400);
+  }
+
+  /* ---- Lecture des fichiers ---- */
+  async function readWorkbook(file) {
+    await loadScript(XLSX_URL);
+    var wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    var all = [];
+    wb.SheetNames.slice(0, 6).forEach(function (name) {
+      var ws = wb.Sheets[name];
+      if (!ws || !ws['!ref']) return;
+      var rows = window.XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+      var origin = window.XLSX.utils.decode_range(ws['!ref']).s;
+      (ws['!merges'] || []).forEach(function (m) {
+        var r0 = m.s.r - origin.r, c0 = m.s.c - origin.c;
+        var v = rows[r0] ? rows[r0][c0] : '';
+        for (var r = m.s.r; r <= m.e.r; r++) for (var c = m.s.c; c <= m.e.c; c++) {
+          if (r === m.s.r && c === m.s.c) continue;
+          var rr = r - origin.r, cc = c - origin.c;
+          if (!rows[rr]) rows[rr] = [];
+          if (!rows[rr][cc]) rows[rr][cc] = v;
+        }
+      });
+      all.push(rows);
+    });
+    return all;
+  }
+
+  async function readPdf(file, progress, signal) {
+    await loadScript(PDFJS_URL);
+    var lib = window.pdfjsLib;
+    lib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+    var pdf = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+    var text = '', first = null, pages = Math.min(pdf.numPages, 3);
+    for (var p = 1; p <= pages; p++) {
+      if (signal.aborted) throw { code: 'cancelled' };
+      progress('Lecture du PDF… ' + p + '/' + pages);
+      var page = await pdf.getPage(p);
+      var k = Math.max(1, Math.min(3, 1800 / page.getViewport({ scale: 1 }).width));
+      var vp = page.getViewport({ scale: k });
+      var tc = await page.getTextContent(), lines = {}, items = [];
+      tc.items.forEach(function (it) {
+        if (!it.str || !it.str.trim()) return;
+        var tr = lib.Util.transform(vp.transform, it.transform);
+        var h = Math.hypot(tr[2], tr[3]) || 10, x0 = tr[4], y = tr[5];
+        items.push({ str: it.str, x0: x0, x1: x0 + it.width * k, y0: y - 0.85 * h, y1: y + 0.2 * h, yc: y - 0.3 * h, h: h });
+        var yk = Math.round(it.transform[5] / 3);
+        (lines[yk] = lines[yk] || []).push({ x: it.transform[4], s: it.str });
+      });
+      Object.keys(lines).map(Number).sort(function (a, b) { return b - a; }).forEach(function (y) {
+        text += lines[y].sort(function (a, b) { return a.x - b.x; }).map(function (z) { return z.s.trim(); }).join(' ') + '\n';
+      });
+      if (p === 1) {
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
+        var ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        first = { ctx: ctx, W: canvas.width, H: canvas.height, items: items };
+      }
+    }
+    return { text: text, first: first };
+  }
+
+  /* ---- Lecture locale d'un emploi du temps en blocs de couleur (image ou PDF), sans IA ---- */
+  var TESS_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+  var ocrPromise = null;
+  function getOcr() {
+    if (!ocrPromise) {
+      ocrPromise = Promise.race([
+        loadScript(TESS_URL).then(function () { return window.Tesseract.createWorker('fra', 1); }),
+        new Promise(function (_, rej) { setTimeout(function () { rej({ code: 'ocr_failed' }); }, 60000); })
+      ]).catch(function (e) { ocrPromise = null; throw (e && e.code === 'load_failed' ? { code: 'ocr_failed' } : (e && e.code ? e : { code: 'ocr_failed' })); });
+    }
+    return ocrPromise;
+  }
+
+  function median(a) {
+    var s = a.slice().sort(function (x, y) { return x - y; }), n = s.length;
+    return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : 0;
+  }
+
+  /* Repère les blocs de couleur : zones colorées d'une seule teinte, séparées par leur bordure. */
+  function findBlocks(data, w, h) {
+    var n = w * h, mask = new Uint8Array(n), seen = new Uint8Array(n), i, p;
+    for (i = 0, p = 0; i < n; i++, p += 4) {
+      var r = data[p], g = data[p + 1], b = data[p + 2];
+      var mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      mask[i] = (0.299 * r + 0.587 * g + 0.114 * b < 205 || mx - mn >= 25) ? 1 : 0;
+    }
+    function join(a, c) {
+      if (!mask[c] || seen[c]) return false;
+      var pa = a * 4, pc = c * 4;
+      return Math.abs(data[pa] - data[pc]) + Math.abs(data[pa + 1] - data[pc + 1]) + Math.abs(data[pa + 2] - data[pc + 2]) <= 45;
+    }
+    var blocks = [], stack = [];
+    for (var s = 0; s < n; s++) {
+      if (!mask[s] || seen[s]) continue;
+      var x0 = w, y0 = h, x1 = 0, y1 = 0, cnt = 0;
+      seen[s] = 1; stack.push(s);
+      while (stack.length) {
+        var k = stack.pop(), x = k % w, y = (k - x) / w;
+        cnt++;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        if (x > 0 && join(k, k - 1)) { seen[k - 1] = 1; stack.push(k - 1); }
+        if (x < w - 1 && join(k, k + 1)) { seen[k + 1] = 1; stack.push(k + 1); }
+        if (y > 0 && join(k, k - w)) { seen[k - w] = 1; stack.push(k - w); }
+        if (y < h - 1 && join(k, k + w)) { seen[k + w] = 1; stack.push(k + w); }
+      }
+      var bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+      if (bw >= 30 && bh >= 18 && bh < h * 0.7 && cnt / (bw * bh) >= 0.45) blocks.push({ x0: x0, y0: y0, x1: x1 + 1, y1: y1 + 1 });
+    }
+    return blocks;
+  }
+
+  /* Recadre un bloc et ne garde que le texte (noir sur blanc), ce qui aide beaucoup la reconnaissance. */
+  function prepCrop(data, W, b, scale) {
+    var w = b.x1 - b.x0, h = b.y1 - b.y0, x, y, p;
+    var counts = {}, best = 0, bestKey = 0, key;
+    for (y = b.y0; y < b.y1; y++) for (x = b.x0; x < b.x1; x++) {
+      p = (y * W + x) * 4; key = (data[p] << 16) | (data[p + 1] << 8) | data[p + 2];
+      counts[key] = (counts[key] || 0) + 1;
+      if (counts[key] > best) { best = counts[key]; bestKey = key; }
+    }
+    var fl = 0.299 * (bestKey >> 16 & 255) + 0.587 * (bestKey >> 8 & 255) + 0.114 * (bestKey & 255);
+    var lum = new Float32Array(w * h), lighter = 0, darker = 0;
+    for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
+      p = ((b.y0 + y) * W + b.x0 + x) * 4;
+      var l = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
+      lum[y * w + x] = l;
+      if (l - fl > 40) lighter++; else if (fl - l > 40) darker++;
+    }
+    var light = lighter >= darker;
+    var small = document.createElement('canvas'); small.width = w; small.height = h;
+    var sc = small.getContext('2d'), id = sc.createImageData(w, h);
+    for (var i = 0; i < w * h; i++) {
+      var t = light ? (lum[i] - fl) / (255 - fl + 1) : (fl - lum[i]) / (fl + 1);
+      t = Math.max(0, Math.min(1, t * 1.15));
+      var v = 255 * (1 - t);
+      id.data[i * 4] = id.data[i * 4 + 1] = id.data[i * 4 + 2] = v; id.data[i * 4 + 3] = 255;
+    }
+    sc.putImageData(id, 0, 0);
+    var big = document.createElement('canvas'); big.width = Math.round(w * scale) + 20; big.height = Math.round(h * scale) + 20;
+    var bc = big.getContext('2d'); bc.fillStyle = '#fff'; bc.fillRect(0, 0, big.width, big.height);
+    bc.imageSmoothingEnabled = true; bc.imageSmoothingQuality = 'high';
+    bc.drawImage(small, 10, 10, Math.round(w * scale), Math.round(h * scale));
+    return big;
+  }
+
+  /* Sources de texte : reconnaissance (images) ou texte du PDF (positions exactes). */
+  function ocrSource(canvas, data, W, H, progress, signal) {
+    var mode = '';
+    async function setMode(worker, m) { if (mode !== m) { await worker.setParameters({ tessedit_pageseg_mode: m }); mode = m; } }
+    return {
+      header: async function (yMax) {
+        var worker = await getOcr();
+        await setMode(worker, '11');
+        var hh = Math.max(20, Math.min(yMax, H)), sc = 2, c = document.createElement('canvas');
+        c.width = W * sc; c.height = hh * sc;
+        var cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
+        cx.drawImage(canvas, 0, 0, W, hh, 0, 0, c.width, c.height);
+        var r = await worker.recognize(c);
+        return (r.data.words || []).map(function (w) { return { text: w.text, xc: (w.bbox.x0 + w.bbox.x1) / 2 / sc, yc: (w.bbox.y0 + w.bbox.y1) / 2 / sc }; });
+      },
+      lines: async function (b, i, total) {
+        if (signal.aborted) throw { code: 'cancelled' };
+        var worker = await getOcr();
+        await setMode(worker, '6');
+        progress('Lecture des cours… ' + (i + 1) + '/' + total);
+        var sc = Math.max(1, Math.min(3, 480 / (b.x1 - b.x0)));
+        var r = await worker.recognize(prepCrop(data, W, b, sc));
+        return (r.data.lines || []).map(function (l) {
+          return { text: l.text.replace(/\s+/g, ' ').trim(), x0: (l.bbox.x0 - 10) / sc + b.x0, x1: (l.bbox.x1 - 10) / sc + b.x0, y0: (l.bbox.y0 - 10) / sc + b.y0, y1: (l.bbox.y1 - 10) / sc + b.y0 };
+        }).filter(function (l) { return l.text; });
+      }
+    };
+  }
+
+  function pdfSource(items) {
+    return {
+      header: async function (yMax) {
+        return items.filter(function (it) { return it.y1 < yMax; }).map(function (it) { return { text: it.str, xc: (it.x0 + it.x1) / 2, yc: (it.y0 + it.y1) / 2 }; });
+      },
+      lines: async function (b) {
+        var inside = items.filter(function (it) {
+          var xc = (it.x0 + it.x1) / 2, yc = (it.y0 + it.y1) / 2;
+          return xc >= b.x0 && xc <= b.x1 && yc >= b.y0 && yc <= b.y1;
+        }).sort(function (a, c) { return a.yc - c.yc || a.x0 - c.x0; });
+        var lines = [];
+        inside.forEach(function (it) {
+          var last = lines[lines.length - 1];
+          if (last && Math.abs(it.yc - last.yc) <= 0.6 * Math.max(it.h, last.h)) {
+            last.text += (it.x0 - last.x1 > 0.2 * it.h ? ' ' : '') + it.str.trim();
+            last.x1 = Math.max(last.x1, it.x1); last.y1 = Math.max(last.y1, it.y1);
+          } else lines.push({ text: it.str.trim(), x0: it.x0, x1: it.x1, y0: it.y0, y1: it.y1, yc: it.yc, h: it.h });
+        });
+        return lines.filter(function (l) { return l.text; });
+      }
+    };
+  }
+
+  /* Jours et dates lus dans l'en-tête. */
+  function parseHeader(words) {
+    var days = [], dates = [];
+    words.forEach(function (w) {
+      var d = dayOfCell(w.text);
+      if (d >= 0 && /[a-zA-Z]{3,}/.test(w.text)) days.push({ day: d, xc: w.xc, yc: w.yc });
+      var re = /(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/g, m;
+      while ((m = re.exec(w.text))) {
+        var dt = new Date(+m[3], +m[2] - 1, +m[1]);
+        if (!isNaN(dt) && dt.getMonth() === +m[2] - 1) dates.push({ d: dt, xc: w.xc, yc: w.yc });
+      }
+    });
+    return { days: days, dates: dates };
+  }
+
+  var TIME_LINE = /^\s*(\d{1,2})\s*[:.hH]\s*(\d{2})\b/;
+  function labelTime(text) {
+    var m = TIME_LINE.exec(text);
+    if (!m) return null;
+    var h = +m[1], mi = +m[2];
+    return h > 24 || mi > 59 ? null : h * 60 + mi;
+  }
+  var STOPWORDS = { de: 1, des: 1, du: 1, la: 1, le: 1, les: 1, un: 1, une: 1, et: 1, en: 1, au: 1, a: 1, ou: 1, sur: 1, par: 1, pour: 1, dans: 1, avec: 1, sous: 1, vers: 1, d: 1, l: 1 };
+
+  /* Les titres longs sont coupés au milieu des mots. On recolle les lignes avec ou sans espace. */
+  function joinLines(lines, cap) {
+    var out = lines[0].text;
+    for (var i = 1; i < lines.length; i++) {
+      var a = lines[i - 1], first = lines[i].text.split(' ')[0], space;
+      var avg = a.rw / Math.max(1, a.text.length);
+      if (/^[A-ZÀ-Ý0-9]/.test(first)) space = true;
+      else if (cap - a.rw > 1.6 * avg) space = true;
+      else if (STOPWORDS[norm(first).replace(/[^a-z]/g, '')]) space = true;
+      else space = first.length > 5;
+      out += (space ? ' ' : '') + lines[i].text;
+    }
+    return out;
+  }
+
+  /* Transforme les blocs et leur texte en activités (jour, heures, titre). */
+  async function assemble(blocks, src, W, H) {
+    var minY = Math.min.apply(null, blocks.map(function (b) { return b.y0; }));
+    var header = parseHeader(await src.header(minY - 3));
+    var i;
+    for (i = 0; i < blocks.length; i++) blocks[i].lines = await src.lines(blocks[i], i, blocks.length);
+
+    /* Colonnes : par les noms de jours de l'en-tête, sinon par la position (le premier jour supposé lundi). */
+    var colW = median(blocks.map(function (b) { return b.x1 - b.x0; }));
+    var hdr = header.days.slice().sort(function (a, b) { return a.xc - b.xc; });
+    var dayNote = '';
+    if (hdr.length >= 2) {
+      var gaps = [];
+      for (i = 1; i < hdr.length; i++) gaps.push(hdr[i].xc - hdr[i - 1].xc);
+      colW = median(gaps) || colW;
+      blocks.forEach(function (b) {
+        var xc = (b.x0 + b.x1) / 2, best = null;
+        hdr.forEach(function (d) { if (!best || Math.abs(d.xc - xc) < Math.abs(best.xc - xc)) best = d; });
+        b.day = best && Math.abs(best.xc - xc) <= 0.75 * colW ? best.day : -1;
+      });
+    } else {
+      var minX = Math.min.apply(null, blocks.map(function (b) { return b.x0; }));
+      blocks.forEach(function (b) { b.day = Math.round((b.x0 - minX) / colW); });
+      dayNote = 'Les jours n\'ont pas pu être lus : la première colonne est supposée être lundi.';
+    }
+
+    /* Heures : étiquettes lues dans les blocs, vérifiées par la position (échelle déduite des blocs lisibles). */
+    blocks.forEach(function (b) {
+      var L = b.lines;
+      b.ls = L.length && labelTime(L[0].text) != null ? labelTime(L[0].text) : null;
+      b.le = L.length > 1 && labelTime(L[L.length - 1].text) != null ? labelTime(L[L.length - 1].text) : null;
+      b.top = b.y0 - 0.5; b.bot = b.y1 + 0.5;
+    });
+    var scales = [];
+    blocks.forEach(function (b) { if (b.ls != null && b.le != null && b.le > b.ls) scales.push((b.bot - b.top) / (b.le - b.ls)); });
+    var cal = null;
+    if (scales.length) {
+      var scale = median(scales), offs = [];
+      blocks.forEach(function (b) {
+        if (b.ls != null && b.le != null && b.le > b.ls) { offs.push(b.top - b.ls * scale); offs.push(b.bot - b.le * scale); }
+      });
+      cal = { scale: scale, off: median(offs) };
+    }
+    function r5(v) { return Math.round(v / 5) * 5; }
+
+    /* Largeur maximale d'une ligne de titre : sert à savoir si une ligne est pleine. */
+    var cap = 0;
+    blocks.forEach(function (b) {
+      var bw = b.x1 - b.x0;
+      b.lines.forEach(function (l) { l.rw = (l.x1 - l.x0) / bw; if (labelTime(l.text) == null && l.rw > cap) cap = l.rw; });
+    });
+
+    var items = [];
+    blocks.forEach(function (b) {
+      if (b.day < 0 || b.day > 6) return;
+      var start = b.ls, end = b.le;
+      if (cal) {
+        var gs = r5((b.top - cal.off) / cal.scale), ge = r5((b.bot - cal.off) / cal.scale);
+        if (start == null || Math.abs(start - gs) > 7) start = gs;
+        if (end == null || Math.abs(end - ge) > 7) end = ge;
+      }
+      if (start == null || end == null || end <= start) return;
+      var rest = b.lines.filter(function (l, idx) {
+        return !((idx === 0 && b.ls != null) || (idx === b.lines.length - 1 && b.le != null && b.lines.length > 1));
+      });
+      var room = '', teacher = '';
+      if (rest.length > 1 && rest[rest.length - 1].text.length <= 6 && rest[rest.length - 1].text.indexOf(' ') < 0) {
+        room = rest.pop().text.replace(/[^A-Za-z0-9]/g, '').replace(/^T[Il]$/, 'T1');
+        if (!/\d/.test(room)) room = '';
+      }
+      if (rest.length > 1) teacher = rest.pop().text;
+      var title = rest.length ? joinLines(rest, cap) : '';
+      title = title.replace(/\s+/g, ' ').trim();
+      if (!title) return;
+      items.push({ day: b.day, start: start, end: end, title: title + (room ? ' · ' + room : ''), teacher: teacher });
+    });
+
+    /* Semaine du document : date du lundi lue dans l'en-tête. */
+    var docWeek = null;
+    for (i = 0; i < header.dates.length && !docWeek; i++) {
+      var dt = header.dates[i], near = null;
+      hdr.forEach(function (d) { if (Math.abs(d.xc - dt.xc) < 0.5 * colW && dt.yc > d.yc && (!near || Math.abs(d.xc - dt.xc) < Math.abs(near.xc - dt.xc))) near = d; });
+      if (near) docWeek = mondayKey(new Date(dt.d.getFullYear(), dt.d.getMonth(), dt.d.getDate() - near.day));
+    }
+    if (!docWeek && header.dates.length) docWeek = mondayKey(header.dates[0].d);
+    return { items: items, docWeek: docWeek, note: dayNote, found: blocks.length };
+  }
+
+  async function visionImage(file, progress, signal) {
+    var bmp = await createImageBitmap(file);
+    var k = Math.min(1, 2600 / Math.max(bmp.width, bmp.height));
+    var W = Math.round(bmp.width * k), H = Math.round(bmp.height * k);
+    var canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+    var cx = canvas.getContext('2d', { willReadFrequently: true }); cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H);
+    cx.drawImage(bmp, 0, 0, W, H);
+    var data = cx.getImageData(0, 0, W, H).data;
+    progress('Repérage des cours…');
+    var blocks = findBlocks(data, W, H);
+    if (!blocks.length) throw { code: 'no_items', hint: "Aucun bloc de cours repéré dans cette image. Utilisez une capture nette de l'emploi du temps entier, ou son PDF." };
+    progress('Chargement du moteur de lecture…');
+    await getOcr();
+    return assemble(blocks, ocrSource(canvas, data, W, H, progress, signal), W, H);
+  }
+
+  /* ---- Fenêtre d'import ---- */
+  var imp = { ctl: null, items: [], text: '', docWeek: null, note: '' };
+
+  function impStatus(msg, err) { var el = $('imp-status'); el.textContent = msg; el.className = 'hint' + (err ? ' err' : ''); }
+  function impMode(mode) {
+    $('imp-body').hidden = mode !== 'result';
+    $('imp-ok').hidden = mode !== 'result';
+  }
+  function openImp() { $('imp').hidden = false; $('imp-cancel').focus(); }
+  function closeImp() { if (imp.ctl) imp.ctl.abort(); imp.ctl = null; $('imp').hidden = true; }
+  function dayLabel(key) { var d = parseKey(key); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear(); }
+
+  function impError(e) {
+    var code = e && e.code, msg;
+    if (code === 'cancelled') return;
+    if (code === 'ocr_failed') msg = "La lecture d'une image a besoin de télécharger son moteur de reconnaissance (connexion Internet requise) et n'a pas pu démarrer ici. Ouvrez la page publiée sur votre site, ou importez le PDF de l'emploi du temps.";
+    else if (code === 'too_big') msg = 'Fichier trop volumineux (20 Mo maximum).';
+    else if (code === 'load_failed') msg = "Une bibliothèque de lecture n'a pas pu être chargée. Vérifiez votre connexion et réessayez.";
+    else if (code === 'no_items') msg = e.hint || "Aucune activité reconnue dans ce fichier. Vérifiez qu'il contient des jours et des heures, ou essayez Excel, CSV, PDF ou une capture nette.";
+    else msg = 'Impossible de lire ce fichier.';
+    impMode('error');
+    impStatus(msg, true);
+  }
+
+  function updateImpCount() {
+    var n = imp.items.filter(function (i) { return !i.skip; }).length;
+    $('imp-ok').textContent = 'Ajouter ' + n + ' activité' + (n > 1 ? 's' : '');
+    $('imp-ok').disabled = n === 0;
+  }
+
+  function showResult(items) {
+    imp.items = items.map(function (it) { it.skip = false; return it; });
+    var fixed = items.some(function (i) { return i.rep || i.week; });
+    var groups = [[], [], [], [], [], [], []];
+    imp.items.forEach(function (it, idx) { it.idx = idx; groups[it.day].push(it); });
+    var html = '';
+    groups.forEach(function (g, d) {
+      if (!g.length) return;
+      g.sort(function (a, b) { return a.start - b.start; });
+      html += '<div class="imp-day"><b>' + DAYS[d] + '</b><ul>' + g.map(function (it) {
+        return '<li data-i="' + it.idx + '"><span>' + fmt(it.start) + '–' + fmt(it.end) + '</span>' +
+          '<input type="text" maxlength="60" data-i="' + it.idx + '" value="' + esc(it.title) + '" aria-label="Titre de l\'activité">' +
+          '<button type="button" class="imp-x" data-i="' + it.idx + '" aria-label="Retirer cette activité" title="Retirer">×</button></li>';
+      }).join('') + '</ul></div>';
+    });
+    $('imp-list').innerHTML = html;
+    var n = items.length;
+    impStatus(n + ' activité' + (n > 1 ? 's' : '') + ' trouvée' + (n > 1 ? 's' : '') + '. Corrigez un titre si besoin, puis ajoutez-' + (n > 1 ? 'les' : 'la') + '.' + (imp.note ? ' ' + imp.note : ''));
+    $('imp-scope-wrap').hidden = fixed;
+    $('imp-replace-wrap').hidden = fixed;
+    $('imp-week-label').textContent = imp.docWeek ? 'Seulement la semaine du ' + dayLabel(imp.docWeek) : 'Cette semaine seulement';
+    document.querySelector('input[name="imp-scope"][value="' + (imp.docWeek ? 'week' : 'rep') + '"]').checked = true;
+    updateImpCount();
+    impMode('result');
+    $('imp-ok').focus();
+  }
+
+  async function importFile(file) {
+    if (!file) return;
+    if (imp.ctl) imp.ctl.abort();
+    imp.ctl = new AbortController();
+    var ctl = imp.ctl;
+    imp.items = []; imp.text = ''; imp.docWeek = null; imp.note = '';
+    openImp(); impMode('loading');
+    impStatus('Lecture de « ' + file.name + ' »…');
+    function progress(m) { if (!ctl.signal.aborted) impStatus(m); }
+    try {
+      if (file.size > 20 * 1024 * 1024) throw { code: 'too_big' };
+      var name = file.name.toLowerCase(), type = file.type || '', items = [], r;
+      var isImg = type.indexOf('image/') === 0 || /\.(png|jpe?g|webp|gif|bmp)$/.test(name);
+      var isPdf = type === 'application/pdf' || /\.pdf$/.test(name);
+      if (isImg) {
+        r = await visionImage(file, progress, ctl.signal);
+        items = r.items; imp.docWeek = r.docWeek; imp.note = r.note;
+      } else if (isPdf) {
+        var pdf = await readPdf(file, progress, ctl.signal);
+        imp.text = pdf.text;
+        if (pdf.first) {
+          var f = pdf.first, blocks = findBlocks(f.ctx.getImageData(0, 0, f.W, f.H).data, f.W, f.H);
+          if (blocks.length >= 2) {
+            progress('Lecture du planning…');
+            r = await assemble(blocks, pdfSource(f.items), f.W, f.H);
+            items = r.items; imp.docWeek = r.docWeek; imp.note = r.note;
+          }
+        }
+        if (!finalize(items).length) { items = parseText(pdf.text); imp.docWeek = null; imp.note = ''; }
+      } else if (/\.(xlsx|xls|xlsm|ods)$/.test(name)) {
+        var sheets = await readWorkbook(file);
+        sheets.forEach(function (rows) { if (!items.length) items = parseTable(rows); });
+      } else if (/\.ics$/.test(name) || type === 'text/calendar') {
+        items = parseICS(await file.text());
+      } else if (/\.json$/.test(name)) {
+        items = parseJSON(await file.text());
+      } else {
+        var text = await file.text();
+        items = /\.(csv|tsv)$/.test(name) || type === 'text/csv' ? parseTable(parseCSV(text)) : parseText(text);
+      }
+      if (ctl.signal.aborted) return;
+      items = finalize(items);
+      if (!items.length) throw { code: 'no_items' };
+      showResult(items);
+    } catch (e) {
+      if (e instanceof SyntaxError) e = { code: 'no_items' };
+      impError(e);
+    }
+  }
+
+  function applyImport() {
+    var list = imp.items.filter(function (i) { return !i.skip; });
+    if (!list.length) return;
+    [].forEach.call(document.querySelectorAll('#imp-list input[data-i]'), function (inp) {
+      var it = imp.items[+inp.getAttribute('data-i')];
+      var t = inp.value.replace(/\s+/g, ' ').trim().slice(0, 60);
+      if (it && t) it.title = t;
+    });
+    var scope = document.querySelector('input[name="imp-scope"]:checked').value;
+    var forced = $('imp-cat').value, replace = $('imp-replace').checked;
+    var fixed = list.some(function (i) { return i.rep || i.week; });
+    var target = imp.docWeek || viewKey;
+    state.events = state.events.filter(function (e) { return !e.sample; });
+    if (replace && !fixed) {
+      state.events = state.events.filter(function (e) { return scope === 'rep' ? !e.rep : (e.rep || e.week !== target); });
+    }
+    var first = null, seenWeeks = {};
+    list.forEach(function (it) {
+      var rep = it.rep ? true : (it.week ? false : scope === 'rep');
+      var week = rep ? null : (it.week || target);
+      if (it.week) { seenWeeks[it.week] = 1; if (!first || it.week < first) first = it.week; }
+      state.events.push({ id: uid(), day: it.day, start: it.start, end: it.end, title: it.title, cat: forced || it.cat, rep: rep, week: week, sample: false });
+    });
+    var n = list.length;
+    closeImp();
+    if (first) { if (!seenWeeks[viewKey]) viewKey = first; }
+    else if (scope === 'week') viewKey = target;
+    commit();
+    say(n + ' activité' + (n > 1 ? 's ajoutées' : ' ajoutée') + (scope === 'week' && !first ? ' à la semaine du ' + dayLabel(target) : '') + '.');
+  }
+
+  function hasFiles(e) { return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0; }
 
   function init() {
     load();
@@ -897,6 +1723,9 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     applyTheme();
     $('name').value = state.name;
     buildForm();
+    var opts = '<option value="">Automatique</option>';
+    CATS.forEach(function (c) { opts += '<option value="' + c.id + '">' + c.name + '</option>'; });
+    $('imp-cat').innerHTML = opts;
     render();
 
     $('name').addEventListener('input', function () { state.name = this.value; save(); });
@@ -916,12 +1745,12 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
       var col = e.target.closest('.col');
       if (col) {
         var r = col.getBoundingClientRect();
-        var s = Math.max(0, Math.min(46, Math.floor((e.clientY - r.top) / HALF)));
-        openEditor(null, { day: +col.getAttribute('data-day'), start: s, end: s + 2, cat: 'work' });
+        var m = Math.max(0, Math.min(1425, Math.floor((e.clientY - r.top) / PX / 15) * 15));
+        openEditor(null, { day: +col.getAttribute('data-day'), start: m, end: Math.min(DAYMIN, m + 60), cat: 'work' });
       }
     });
 
-    $('btn-new').addEventListener('click', function () { openEditor(null, { day: viewingToday() ? todayIdx() : 0, start: 18, end: 20, cat: 'work' }); });
+    $('btn-new').addEventListener('click', function () { openEditor(null, { day: viewingToday() ? todayIdx() : 0, start: 18 * 60, end: 20 * 60, cat: 'work' }); });
     $('btn-sample').addEventListener('click', function () {
       state.events = state.events.filter(function (e) { return !e.sample && (e.rep || e.week !== viewKey); }).concat(sampleWeek(viewKey));
       say(''); commit();
@@ -954,15 +1783,43 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
     });
 
     $('form').addEventListener('submit', onSubmit);
-    $('f-start').addEventListener('change', updateHint);
-    $('f-end').addEventListener('change', updateHint);
+    $('f-start').addEventListener('input', updateHint);
+    $('f-end').addEventListener('input', updateHint);
     $('f-cancel').addEventListener('click', closeEditor);
     $('f-delete').addEventListener('click', function () {
       state.events = state.events.filter(function (x) { return x.id !== editingId; });
       closeEditor(); commit();
     });
     $('overlay').addEventListener('mousedown', function (e) { if (e.target === $('overlay')) closeEditor(); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('overlay').hidden) closeEditor(); });
+
+    /* Import */
+    $('btn-import').addEventListener('click', function () { $('imp-file').click(); });
+    $('imp-file').addEventListener('change', function () { var f = this.files && this.files[0]; this.value = ''; if (f) importFile(f); });
+    $('imp-cancel').addEventListener('click', closeImp);
+    $('imp-ok').addEventListener('click', applyImport);
+    $('imp-list').addEventListener('click', function (e) {
+      var x = e.target.closest('.imp-x');
+      if (!x) return;
+      var i = +x.getAttribute('data-i');
+      if (imp.items[i]) { imp.items[i].skip = true; var li = x.closest('li'); if (li) li.hidden = true; updateImpCount(); }
+    });
+    $('imp').addEventListener('mousedown', function (e) { if (e.target === $('imp')) closeImp(); });
+    var depth = 0;
+    window.addEventListener('dragenter', function (e) { if (hasFiles(e)) { e.preventDefault(); depth++; document.body.classList.add('dragging'); } });
+    window.addEventListener('dragover', function (e) { if (hasFiles(e)) e.preventDefault(); });
+    window.addEventListener('dragleave', function (e) { if (hasFiles(e)) { depth = Math.max(0, depth - 1); if (!depth) document.body.classList.remove('dragging'); } });
+    window.addEventListener('drop', function (e) {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); depth = 0; document.body.classList.remove('dragging');
+      var f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) importFile(f);
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      if (!$('imp').hidden) closeImp();
+      else if (!$('overlay').hidden) closeEditor();
+    });
 
     $('board').scrollTop = 6 * HH;
     setInterval(placeNow, 60000);
@@ -977,5 +1834,6 @@ h1 { margin: 0; font-family: var(--font-display); font-weight: 700; letter-spaci
   init();
 })();
 </script>
+
 </body>
 </html>
