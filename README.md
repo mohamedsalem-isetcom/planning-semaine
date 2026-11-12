@@ -6,7 +6,9 @@ Un planning hebdomadaire interactif pour toutes les semaines : 7 jours, 24 heure
 
 - **Toutes les semaines** : flèches précédente/suivante, sélecteur de date et bouton « Aujourd'hui ». Chaque semaine a ses propres activités.
 - **Activités répétées** : cochez « Répéter chaque semaine » pour qu'une activité apparaisse dans toutes les semaines (cours, sommeil, sport).
-- **Grille 7 jours × 24 h** avec un pas d'une demi-heure. Cliquez sur une case pour ajouter une activité, cliquez sur un bloc pour le modifier ou le supprimer.
+- **Heures à la minute près** : saisissez par exemple 11:42 ou 12:07.
+- **Import automatique de votre planning d'étude** : choisissez un fichier ou déposez-le sur la page. Formats : Excel (.xlsx, .xls), CSV, texte, calendrier (.ics), JSON, PDF et image. Vous voyez la liste des activités trouvées, puis un clic les ajoute (chaque semaine ou cette semaine seulement). Les captures d'écran, images et PDF d'emploi du temps (blocs colorés) sont lus directement dans votre navigateur par reconnaissance de texte (OCR), sans IA ni compte : les blocs sont détectés, les horaires sont lus à la minute et le jour/la semaine viennent de l'en-tête. Vérifiez la liste : un titre mal lu se corrige avant l'ajout. Internet est nécessaire (bibliothèques Tesseract.js, pdf.js, SheetJS chargées depuis un CDN).
+- **Grille 7 jours × 24 h** Cliquez sur une case pour ajouter une activité, cliquez sur un bloc pour le modifier ou le supprimer.
 - **Catégories colorées** : Travail, Études, Sport, Repas, Sommeil, Loisirs, Autre.
 - **Plusieurs jours à la fois** : cochez les jours concernés pour répéter une activité.
 - **Activités de nuit** : un bloc qui finit après minuit (par exemple 23:00 → 07:00) passe sur le jour suivant. Un dimanche soir qui finit après minuit se poursuit le lundi de la semaine suivante.
@@ -24,7 +26,7 @@ Un planning hebdomadaire interactif pour toutes les semaines : 7 jours, 24 heure
    ```
 2. Ouvrez `index.html` dans votre navigateur.
 
-La page charge la police (Google Fonts) et la bibliothèque PDF (jsPDF, via cdnjs) depuis Internet. Sans connexion, le planning fonctionne mais avec une police de secours, et l'export PDF est indisponible.
+La page charge la police (Google Fonts) et la bibliothèque PDF (jsPDF, via cdnjs) depuis Internet. Les lecteurs Excel (SheetJS) et PDF (pdf.js) ne se chargent qu'au moment d'un import. Sans connexion, le planning fonctionne mais avec une police de secours, et l'export et l'import de fichiers Excel ou PDF sont indisponibles.
 
 ## Publier avec GitHub Pages
 
@@ -43,11 +45,11 @@ Tout est dans `index.html` :
 
 ## Données
 
-Le planning, le nom et le thème sont enregistrés dans la clé `planning-semaine-v2` du `localStorage` de votre navigateur. Ils restent sur votre appareil. Vider les données du site efface le planning.
+Le planning, le nom et le thème sont enregistrés dans la clé `planning-semaine-v3` du `localStorage` de votre navigateur. Ils restent sur votre appareil. Vider les données du site efface le planning.
 
 ## Technologies
 
-HTML, CSS et JavaScript sans framework. [jsPDF](https://github.com/parallax/jsPDF) 2.5.1 pour l'export PDF.
+HTML, CSS et JavaScript sans framework. [jsPDF](https://github.com/parallax/jsPDF) 2.5.1 pour l'export PDF, [SheetJS](https://sheetjs.com) 0.18.5 pour l'import Excel et [pdf.js](https://mozilla.github.io/pdf.js/) 3.11.174 pour l'import PDF.
 
 ## Licence
 
